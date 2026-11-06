@@ -1,0 +1,240 @@
+:root {
+  --vd-bg: #0f1115;
+  --vd-card: #171a21;
+  --vd-fg: #e8eaed;
+  --vd-muted: #9aa0aa;
+  --vd-accent: #5b8cff;
+  --vd-user: #33c48d;
+  --vd-agent: #5b8cff;
+  --vd-danger: #ef5b6b;
+  --vd-border: #262b34;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.vd-card {
+  width: 320px;
+  background: var(--vd-card);
+  color: var(--vd-fg);
+  border: 1px solid var(--vd-border);
+  border-radius: 18px;
+  padding: 22px 20px 18px;
+  font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.vd-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.vd-brand {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.vd-sub {
+  color: var(--vd-muted);
+  font-size: 12px;
+}
+
+/* Orb / mic indicator */
+.vd-orb {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 6px auto 14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 40%, #232833, #12151b);
+  border: 1px solid var(--vd-border);
+}
+
+.vd-orb__mic {
+  font-size: 30px;
+  z-index: 1;
+}
+
+.vd-orb__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.vd-orb--connecting .vd-orb__pulse {
+  border-color: var(--vd-muted);
+  animation: vd-spin 1s linear infinite;
+  border-top-color: transparent;
+}
+
+.vd-orb--user .vd-orb__pulse {
+  border-color: var(--vd-user);
+  animation: vd-pulse 1.1s ease-out infinite;
+}
+
+.vd-orb--agent .vd-orb__pulse {
+  border-color: var(--vd-agent);
+  animation: vd-pulse 1.1s ease-out infinite;
+}
+
+.vd-orb--error {
+  border-color: var(--vd-danger);
+}
+
+@keyframes vd-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+@keyframes vd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vd-status {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.vd-error {
+  margin: 6px 0 0;
+  color: var(--vd-danger);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vd-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 16px 0 10px;
+}
+
+.vd-btn {
+  appearance: none;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.05s ease,
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+
+.vd-btn:active {
+  transform: translateY(1px);
+}
+
+.vd-btn--primary {
+  background: var(--vd-accent);
+  color: white;
+}
+
+.vd-btn--secondary {
+  background: #2a2f3a;
+  color: var(--vd-fg);
+}
+
+.vd-btn--ghost {
+  background: transparent;
+  color: var(--vd-fg);
+  border: 1px solid var(--vd-border);
+}
+
+.vd-btn--danger {
+  background: var(--vd-danger);
+  color: white;
+}
+
+.vd-hint {
+  margin: 6px 0 0;
+  color: var(--vd-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Live transcript panel */
+.vd-transcript {
+  margin: 14px 0 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  text-align: left;
+  background: #0f1218;
+  border: 1px solid var(--vd-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+.vd-transcript--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--vd-muted);
+  font-size: 13px;
+  min-height: 56px;
+}
+
+.vd-transcript--empty p {
+  margin: 0;
+}
+
+.vd-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vd-line__who {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.vd-line--user {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.vd-line--user .vd-line__who {
+  color: var(--vd-user);
+}
+
+.vd-line--agent .vd-line__who {
+  color: var(--vd-agent);
+}
+
+.vd-line__text {
+  color: var(--vd-fg);
+}
+
+/* Interim (not-yet-final) segments render dimmed to signal they may change. */
+.vd-line--interim .vd-line__text {
+  color: var(--vd-muted);
+  font-style: italic;
+}
