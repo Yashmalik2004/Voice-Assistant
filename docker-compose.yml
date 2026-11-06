@@ -1,0 +1,75 @@
+﻿# Voice Assistant — full local stack.
+#
+# Runs Postgres+pgvector, the FastAPI backend, and the LiveKit agent worker.
+# The React frontend is a Vite dev server or static build and is not included.
+#
+# Quickstart:
+#   cp .env.example .env       # fill in LiveKit / API keys
+#   docker compose up -d
+#   docker compose exec backend uv run python -m app.db.seed
+#
+# To rebuild after code changes:
+#   docker compose build && docker compose up -d
+
+services:
+  # ── Postgres + pgvector ───────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: voice-assistant-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voice_assistant
+      POSTGRES_PASSWORD: voice_assistant
+      POSTGRES_DB: voice_assistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - voice_assistant_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voice_assistant -d voice_assistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── FastAPI backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: voice-assistant-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override DATABASE_URL to use the compose service name.
+      DATABASE_URL: postgresql+asyncpg://voice_assistant:voice_assistant@postgres:5432/voice_assistant
+    healthcheck:
+      test: ["CMD", "python", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ── LiveKit agent worker ───────────────────────────────────────────────────
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: voice-assistant-agent
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Agent calls backend by the compose service name.
+      BACKEND_URL: http://backend:8000
+
+volumes:
+  voice_assistant_pgdata:
