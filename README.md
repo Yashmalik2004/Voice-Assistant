@@ -1,4 +1,4 @@
-﻿# Voice Assistant — Real-Time Voice Support Agent
+﻿# Voice Assistant > Real-Time Voice Support Agent
 
 Production-grade, real-time voice AI customer support agent for e-commerce order
 support. Customers speak to a browser widget about order status, returns, and
