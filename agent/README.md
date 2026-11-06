@@ -1,75 +1,93 @@
-﻿# Voice Assistant Agent Worker
+# Voice Assistant Agent Worker
 
-LiveKit Agents worker process. Registers with the LiveKit server under an
-explicit `agent_name` and accepts per-room job dispatches from the backend.
+LiveKit Agents worker process for the Voice Assistant. Registers with the LiveKit
+server under an explicit `agent_name` and accepts per-room job dispatches from
+the backend.
 
-**Milestone 5 scope:** the worker runs the full grounded conversation loop via
-LiveKit Agents' `AgentSession`:
+## Full Voice Pipeline
 
-- Deepgram streaming STT transcribes the customer (M2), forwarded to the widget
-  over the `lk.transcription` text stream.
-- Cartesia streaming TTS speaks responses back (M3).
-- Silero-VAD turn detection + barge-in (M4).
-- An OpenAI LLM with function tools is the reasoning layer (M5). It classifies
-  intent and calls tools — `get_order_status`, `get_customer_orders`,
-  `get_return_policy` (RAG), `initiate_return` — against the backend's internal
-  APIs, so every spoken order/policy fact is grounded in real data, never
-  invented. See `Voice Assistant_agent/support_agent.py`.
+The worker runs a complete grounded conversation loop via LiveKit Agents' `AgentSession`:
 
-The backend must be running (and Postgres seeded) for the tools to work — the
-agent reaches it at `BACKEND_URL` (default `http://localhost:8000`).
+| Component | Service | Purpose |
+|-----------|---------|---------|
+| STT | Deepgram (`nova-3`) | Streams customer speech to text |
+| VAD | Silero | Detects end-of-turn, enables barge-in |
+| LLM | OpenAI (`gpt-4.1-mini`) | Reasons over tools, generates replies |
+| TTS | Cartesia (`sonic-3`) | Streams text responses as speech |
+
+## Function Tools (Grounded Reasoning)
+
+All order and policy facts come from backend APIs — the LLM never invents them:
+
+| Tool | Purpose |
+|------|---------|
+| `get_order_status` | Look up a specific order by number |
+| `get_customer_orders` | List orders by customer email or phone |
+| `get_return_policy` | Semantic policy search via RAG |
+| `initiate_return` | Start a return request |
 
 ## Setup
 
 ```bash
 cd agent
-uv sync --extra ai   # STT + VAD (core) plus TTS/LLM plugins
+uv sync
 ```
 
-The Deepgram (STT) and Silero (VAD) plugins are core dependencies. The Cartesia
-(TTS) and OpenAI (LLM) plugins live in the `ai` extra, so from Milestone 3
-onward run `uv sync --extra ai`.
+Configure the repo-root `.env`:
 
-Populate the repo-root `.env` with:
-
-- `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-- `DEEPGRAM_API_KEY` — speech-to-text (https://deepgram.com)
-- `CARTESIA_API_KEY` — text-to-speech (https://cartesia.ai)
-
-`AGENT_NAME` must match the backend's `AGENT_NAME` (default `Voice Assistant-agent`).
-Optional tuning:
-
-- STT: `STT_MODEL` (`nova-3`), `STT_LANGUAGE` (`en-US`)
-- TTS: `TTS_MODEL` (`sonic-3`), `TTS_VOICE`, `TTS_LANGUAGE` (`en`)
-- Turn-taking: `TURN_ENDPOINTING_DELAY` (`0.7`s end-of-turn silence),
-  `TURN_MAX_DELAY` (`3.0`s), `INTERRUPTIONS_ENABLED` (`true`),
-  `MIN_INTERRUPTION_DURATION` (`0.5`s)
-- Reasoning: `OPENAI_API_KEY` (required for answers), `LLM_MODEL`
-  (`gpt-4.1-mini`), `BACKEND_URL` (`http://localhost:8000`)
-- Persona: `AGENT_PERSONA_NAME`, `STORE_NAME`, `AGENT_GREETING`
+```env
+# Required
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your_livekit_api_key
+LIVEKIT_API_SECRET=your_livekit_api_secret
+DEEPGRAM_API_KEY=your_deepgram_api_key   # STT — required
+CARTESIA_API_KEY=your_cartesia_api_key   # TTS — required for speech output
+OPENAI_API_KEY=your_openai_api_key       # LLM — required for answers
+```
 
 ## Run
 
 ```bash
-# connect to LiveKit and wait for dispatched jobs
-uv run python -m Voice Assistant_agent.worker start
+uv run python -m voice_assistant_agent.worker start
 ```
 
-The `start` subcommand is provided by the LiveKit Agents CLI. On a call the
-agent greets the caller, then for each final transcript logs `FINAL [...]:
-<text>` and `REPLY: <text>` and speaks the reply (DEBUG level also shows interim
-transcripts). Agent state transitions are logged as `agent state: X -> Y`
-(`listening`/`thinking`/`speaking`); a jump from `speaking` back to `listening`
-mid-reply is a successful barge-in.
+The `start` subcommand is provided by the LiveKit Agents CLI. The worker
+registers under `AGENT_NAME` (default: `voice-assistant-agent`) and waits for
+dispatched jobs from the backend.
 
-Tool calls are logged (`tool get_order_status(...)`), and per-turn latency
-(LLM/TTS) plus an end-of-session usage summary are logged via the metrics hooks.
+## Logging
 
-Graceful degradation:
+On a call, the worker logs:
 
-- Without `DEEPGRAM_API_KEY` the worker logs an error, connects, and produces no
-  transcripts rather than crashing.
-- Without `CARTESIA_API_KEY` the worker logs a warning and runs STT-only (it
-  transcribes but does not speak).
-- Without `OPENAI_API_KEY` there is no reasoning LLM: the agent greets and says
-  it can't answer questions right now, rather than guessing.
+- `FINAL [...]: <text>` — final customer transcript per turn
+- `agent state: X -> Y` — state transitions (listening/thinking/speaking)
+- `tool <name>(...)` — each function tool call
+- Per-turn LLM/TTS latency + end-of-session usage summary
+
+## Graceful Degradation
+
+| Missing credential | Behaviour |
+|---|---|
+| `DEEPGRAM_API_KEY` | Logs error, connects but produces no transcripts |
+| `CARTESIA_API_KEY` | Logs warning, runs STT-only (transcribes, does not speak) |
+| `OPENAI_API_KEY` | Logs warning, greets caller but cannot answer questions |
+
+## Configuration Reference
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `AGENT_NAME` | `voice-assistant-agent` | Must match backend's `AGENT_NAME` |
+| `AGENT_PERSONA_NAME` | `Riley` | Agent's spoken name |
+| `STORE_NAME` | `Northwind` | Store name in agent persona |
+| `AGENT_GREETING` | (auto) | Customise the opening greeting |
+| `STT_MODEL` | `nova-3` | Deepgram model |
+| `STT_LANGUAGE` | `en-US` | STT language |
+| `TTS_MODEL` | `sonic-3` | Cartesia model |
+| `TTS_VOICE` | (default) | Cartesia voice ID |
+| `LLM_MODEL` | `gpt-4.1-mini` | OpenAI model for reasoning |
+| `BACKEND_URL` | `http://localhost:8000` | Backend base URL |
+| `INTERNAL_API_SECRET` | `` | Shared secret for internal APIs |
+| `TURN_ENDPOINTING_DELAY` | `0.7` | Seconds of silence = end of turn |
+| `TURN_MAX_DELAY` | `3.0` | Max seconds before forcing turn end |
+| `INTERRUPTIONS_ENABLED` | `true` | Allow customer barge-in |
+| `MIN_INTERRUPTION_DURATION` | `0.5` | Min speech (s) to count as interruption |

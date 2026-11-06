@@ -1,9 +1,24 @@
-﻿# Voice Assistant Backend
+# Voice Assistant Backend
 
-FastAPI service: LiveKit access-token issuance, session lifecycle, and the
-internal order/customer/return + policy-search APIs the agent's tools call
-(Milestone 5). Data lives in Postgres with the pgvector extension for policy
-embeddings (RAG).
+FastAPI service providing LiveKit access-token issuance, session lifecycle
+management, and the internal order/customer/return and policy-search APIs
+used by the AI voice agent.
+
+**Data store:** Postgres with the pgvector extension for policy embeddings (RAG).
+
+## Endpoints
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/voice/session` | Public (rate-limited) | Create session, return LiveKit token + room |
+| `DELETE` | `/api/voice/session/{id}` | Public | End a session |
+| `GET` | `/api/orders/{order_id}` | Internal secret | Fetch an order (agent tool) |
+| `GET` | `/api/customers/{id}/orders` | Internal secret | List orders by email/phone (agent tool) |
+| `POST` | `/api/orders/{order_id}/return` | Internal secret | Create a return request |
+| `GET` | `/api/policy/search?q=` | Internal secret | Semantic policy search via RAG |
+| `GET` | `/api/health` | Public | Health + LiveKit configuration status |
+
+Interactive docs: http://localhost:8000/docs
 
 ## Setup
 
@@ -12,8 +27,7 @@ cd backend
 uv sync --extra dev
 ```
 
-Copy the repo-root `.env.example` to `.env` and fill in credentials. For the
-database, the default `DATABASE_URL` points at the docker-compose Postgres.
+Copy the repo-root `.env.example` to `.env` and fill in credentials.
 
 ## Database
 
@@ -24,14 +38,14 @@ docker compose up -d postgres
 ```
 
 Tables and the `vector` extension are created automatically on backend startup.
-Seed the mock dataset (customers, orders, returns, policy docs):
+
+Seed the demo dataset (customers, orders, returns, policy docs + embeddings):
 
 ```bash
 uv run python -m app.db.seed
 ```
 
-If `OPENAI_API_KEY` is set, the seed also embeds the policy documents for RAG.
-To (re)embed later:
+To re-embed policy documents (requires `OPENAI_API_KEY`):
 
 ```bash
 uv run python -m app.rag embed
@@ -43,32 +57,34 @@ uv run python -m app.rag embed
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-The backend degrades gracefully if Postgres is down (token issuance and health
-still work; order/policy APIs return errors until the DB is reachable).
+The backend degrades gracefully if Postgres is unreachable on startup —
+token issuance and health checks continue to work; order/policy APIs return
+errors until the database is reachable.
 
-## Endpoints
+## Demo Data
 
-| Method | Path                              | Purpose                                          |
-| ------ | --------------------------------- | ------------------------------------------------ |
-| POST   | `/api/voice/session`              | Create session, return LiveKit token + room name |
-| DELETE | `/api/voice/session/{session_id}` | End session                                      |
-| GET    | `/api/orders/{order_id}`          | Fetch an order (agent tool)                      |
-| GET    | `/api/customers/{identifier}/orders` | List a customer's orders by email or phone    |
-| POST   | `/api/orders/{order_id}/return`   | Create a return request                          |
-| GET    | `/api/policy/search?q=`           | Semantic policy search (RAG; agent tool)         |
-| GET    | `/api/health`                     | Health check                                     |
+| Order | Customer | Status |
+|-------|---------|--------|
+| `4521` | Ada | Shipped (Wireless Headphones) |
+| `4522` | Ada | Delivered |
+| `4530` | Grace | Placed (not yet shipped) |
+| `4531` | Grace | Returned |
+| `4540` | Alan | Shipped |
 
-Interactive docs: http://localhost:8000/docs
+Customer emails: `ada@example.com`, `grace@example.com`, `alan@example.com`
+(also reachable by phone: `+15551230001`, etc.)
 
-## Seeded data (for demos)
+## Configuration
 
-Order numbers are short and human-readable so they're natural to say aloud:
-
-- `4521` — Ada, shipped (Wireless Headphones)
-- `4522` — Ada, delivered
-- `4530` — Grace, placed (not yet shipped)
-- `4531` — Grace, returned
-- `4540` — Alan, shipped
-
-Customers: `ada@example.com`, `grace@example.com`, `alan@example.com`
-(also reachable by phone, e.g. `+15551230001`).
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LIVEKIT_URL` | — | LiveKit server URL |
+| `LIVEKIT_API_KEY` | — | LiveKit API key |
+| `LIVEKIT_API_SECRET` | — | LiveKit API secret |
+| `DATABASE_URL` | (docker compose) | Async Postgres connection URL |
+| `OPENAI_API_KEY` | — | For RAG embeddings |
+| `AGENT_NAME` | `voice-assistant-agent` | Must match agent worker's `AGENT_NAME` |
+| `INTERNAL_API_SECRET` | `` | Shared secret for internal APIs (empty = skip check) |
+| `TOKEN_TTL_SECONDS` | `600` | LiveKit token lifetime in seconds |
+| `RATE_LIMIT_SESSION` | `10/minute` | Per-IP rate limit for session creation |
+| `BACKEND_CORS_ORIGINS` | `http://localhost:5173` | Allowed widget origins |
