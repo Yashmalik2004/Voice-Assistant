@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv
+.uv/
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Docker
+*.pid
+
+# TypeScript incremental build cache
+*.tsbuildinfo
